@@ -1,0 +1,59 @@
+#cloud-config
+hostname: ${VM_HOSTNAME}
+manage_etc_hosts: true
+
+# 1. User Setup
+users:
+  - name: ${VM_USER}
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - "${MY_PUBLIC_KEY}"
+
+
+# 2. Package Installation (Python, Node, Docker, etc.)
+package_update: true
+packages:
+  - curl
+  - git
+  - make
+  - python3
+  - python3-pip
+  - openssh-server
+
+runcmd:
+  # Install Docker
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker ${VM_USER}
+  
+  # Install Node.js LTS
+  - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+  - apt-get install -y nodejs
+
+  # Install & Auth Tailscale
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - tailscale up --authkey=${TAILSCALE_KEY} --hostname=${VM_HOSTNAME}
+
+  # Pre-trust GitHub to avoid the "Fingerprint" prompt
+  - sudo -u ${VM_USER} mkdir -p /home/${VM_USER}/.ssh
+  - sudo -u ${VM_USER} ssh-keyscan -t ed25519 github.com >> /home/${VM_USER}/.ssh/known_hosts
+
+  # Git Configuration for user
+  - sudo -u ${VM_USER} git config --global user.email "${GIT_EMAIL}"
+  - sudo -u ${VM_USER} git config --global user.name "${GIT_NAME}"
+  - sudo -u ${VM_USER} git config --global gpg.format ssh
+  - sudo -u ${VM_USER} git config --global commit.gpgsign true
+  - sudo -u ${VM_USER} git config --global user.signingkey "${MY_PUBLIC_KEY}"
+
+  # Setup Welcome Message
+  - |
+    cat <<EOF > /etc/update-motd.d/99-dev-instructions
+    #!/bin/bash
+    echo "========================================================"
+    echo "🚀 DEV VM READY"
+    echo "Tailscale: Connected | Docker: Ready | GitHub: Trusted"
+    echo "Use 'ssh -A ${VM_USER}@${VM_HOSTNAME}' to use your Mac's GitHub keys."
+    echo "========================================================"
+    EOF
+    chmod +x /etc/update-motd.d/99-dev-instructions

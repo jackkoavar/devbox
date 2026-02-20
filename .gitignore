@@ -1,0 +1,7 @@
+*.raw
+*.iso
+*.tar.xz
+*.vmdk
+.DS_Store
+.env
+user-data
