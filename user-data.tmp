@@ -31,10 +31,6 @@ runcmd:
   - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
   - apt-get install -y nodejs
 
-  # Install & Auth Tailscale
-  - curl -fsSL https://tailscale.com/install.sh | sh
-  - tailscale up --authkey=${TAILSCALE_KEY} --hostname=${VM_HOSTNAME}
-
   # Pre-trust GitHub to avoid the "Fingerprint" prompt
   - sudo -u ${VM_USER} mkdir -p /home/${VM_USER}/.ssh
   - sudo -u ${VM_USER} ssh-keyscan -t ed25519 github.com >> /home/${VM_USER}/.ssh/known_hosts
@@ -45,6 +41,32 @@ runcmd:
   - sudo -u ${VM_USER} git config --global gpg.format ssh
   - sudo -u ${VM_USER} git config --global commit.gpgsign true
   - sudo -u ${VM_USER} git config --global user.signingkey "${MY_PUBLIC_KEY}"
+  - sudo -u ${VM_USER} touch /home/${VM_USER}/.ssh/allowed_signers
+  - sudo -u ${VM_USER} sh -c "echo '${GIT_EMAIL} namespaces=\"git\" ${MY_PUBLIC_KEY}' >> /home/${VM_USER}/.ssh/allowed_signers"
+  - sudo -u ${VM_USER} git config --global gpg.ssh.allowedSignersFile "/home/${VM_USER}/.ssh/allowed_signers"
+
+  # 2. Install & Auth Tailscale
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - tailscale up --authkey=${TAILSCALE_KEY} --hostname=${VM_HOSTNAME}
+
+  # 2. Install and configure code-server with tailscale IP binding
+  - export HOME=/root && curl -fsSL https://code-server.dev/install.sh | sh
+  - systemctl daemon-reload
+  - |
+    # Get the Tailscale IPv4 address
+    TS_IP=$(tailscale ip -4)
+    
+    # Create config directory for the user
+    sudo -u ${VM_USER} mkdir -p /home/${VM_USER}/.config/code-server
+    
+    # Write config: Bind specifically to the Tailscale IP
+    cat <<EOF > /home/${VM_USER}/.config/code-server/config.yaml
+    bind-addr: ${TS_IP}:${CODE_SERVER_PORT}
+    auth: password
+    password: "${CODE_SERVER_PASSWORD}"
+    cert: false
+    EOF
+  - systemctl enable --now code-server@${VM_USER}
 
   # Setup Welcome Message
   - |
@@ -54,6 +76,7 @@ runcmd:
     echo "🚀 DEV VM READY"
     echo "Tailscale: Connected | Docker: Ready | GitHub: Trusted"
     echo "Use 'ssh -A ${VM_USER}@${VM_HOSTNAME}' to use your Mac's GitHub keys."
+    echo "VS Code Web: http://\$(tailscale ip -4):${CODE_SERVER_PORT}"
     echo "========================================================"
     EOF
     chmod +x /etc/update-motd.d/99-dev-instructions

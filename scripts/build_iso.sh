@@ -34,6 +34,8 @@ sed -e "s|\${TAILSCALE_KEY}|$TAILSCALE_KEY|g" \
     -e "s|\${VM_HOSTNAME}|$VM_HOSTNAME|g" \
     -e "s|\${GIT_NAME}|$GIT_NAME|g" \
     -e "s|\${GIT_EMAIL}|$GIT_EMAIL|g" \
+    -e "s|\${CODE_SERVER_PASSWORD}|$CODE_SERVER_PASSWORD|g" \
+    -e "s|\${CODE_SERVER_PORT}|$CODE_SERVER_PORT|g" \
     $TEMPLATE_FILE > $FINAL_USER_DATA
 
 rm $ISO_NAME 2>/dev/null || true
